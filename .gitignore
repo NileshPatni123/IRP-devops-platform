@@ -1,0 +1,66 @@
+target/
+*.class
+*.war
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.iml
+.DS_Store
+ansible/*.retry
+*.tar
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials.json
+
+# Local IDE and operating-system files
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db
+
+# Java, Maven and test outputs
+target/
+**/target/
+*.class
+*.log
+*.war
+*.jar
+*.iml
+.idea/
+
+# Selenium outputs and screenshots
+selenium-tests/target/
+selenium-tests/screenshots/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node dependencies and generated builds
+node_modules/
+dist/
+build/
+
+# Ansible generated files
+ansible/*.retry
+
+# Archives
+*.tar
+*.zip

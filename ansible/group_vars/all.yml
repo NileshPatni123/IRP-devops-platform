@@ -1,0 +1,12 @@
+app_user: irp
+app_dir: /opt/irp
+data_dir: /var/lib/irp
+container_name: irp-portal
+host_port: 8080
+environment_name: production
+
+# Image to deploy. Use a registry image, or a local one loaded from image_tar.
+image_repo: irp-portal
+app_version: "1.0.1"
+previous_version: "1.0.1"      # last known-good version used by rollback
+image_tar: ""                   # e.g. /tmp/irp-portal.tar created with: docker save irp-portal:1.0.1 -o irp-portal.tar

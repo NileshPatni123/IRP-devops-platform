@@ -1,0 +1,48 @@
+
+# PostgreSQL edition: persistent database instead of H2.
+#
+# Start the application:
+#   docker compose -f docker-compose.postgres.yml up -d --build
+#
+# Open http://localhost:8080
+#
+# Set POSTGRES_PASSWORD in PowerShell before running Docker Compose.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: irp-postgres
+    environment:
+      POSTGRES_DB: irp
+      POSTGRES_USER: irp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}
+    ports:
+      - "5432:5432"
+    volumes:
+      - irp-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U irp -d irp"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  portal:
+    build: .
+    image: irp-portal:postgres
+    container_name: irp-portal-pg
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-postgres}
+      APP_VERSION: ${APP_VERSION:-local}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/irp
+      SPRING_DATASOURCE_USERNAME: irp
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  irp-pgdata:

@@ -1,0 +1,30 @@
+# Local run:  docker compose up -d --build     Open http://localhost:8080
+services:
+  portal:
+    build: .
+    image: irp-portal:local
+    container_name: irp-portal
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-compose}
+      APP_VERSION: ${APP_VERSION:-local}
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/irp
+    volumes:
+      - irp-data:/data
+    restart: unless-stopped
+  # Optional monitoring:  docker compose --profile monitoring up -d --build
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    ports: ["9091:9090"]
+    volumes: ["./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    depends_on: [portal]
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["monitoring"]
+    ports: ["3000:3000"]
+    volumes: ["./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/ds.yml:ro"]
+    depends_on: [prometheus]
+volumes:
+  irp-data:

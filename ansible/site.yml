@@ -1,0 +1,111 @@
+---
+# Task 13: configure the node.  Task 14: provision, deploy, health check, rollback.
+# Run:  ansible-playbook -i inventory.ini site.yml -K
+# Rollback demo (bad version):  ansible-playbook -i inventory.ini site.yml -e app_version=9.9.9 -K
+- name: Provision and deploy the Institutional Repository Portal
+  hosts: portal
+  become: true
+  tasks:
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name: [docker.io, python3-docker, curl]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Docker service is enabled and running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Application group exists
+      ansible.builtin.group:
+        name: "{{ app_user }}"
+        state: present
+
+    - name: Application user exists
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        group: "{{ app_user }}"
+        groups: docker
+        shell: /usr/sbin/nologin
+        system: true
+
+    - name: Application and data folders exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0750"
+      loop: ["{{ app_dir }}", "{{ data_dir }}"]
+
+    - name: Deployment settings file
+      ansible.builtin.copy:
+        dest: "{{ app_dir }}/app.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0640"
+        content: |
+          APP_ENVIRONMENT={{ environment_name }}
+          APP_VERSION={{ app_version }}
+          SPRING_DATASOURCE_URL=jdbc:h2:file:/data/irp
+
+    - name: Load image from tarball (only when image_tar is provided)
+      community.docker.docker_image_load:
+        path: "{{ image_tar }}"
+      when: image_tar | length > 0
+
+    - name: Deploy the requested version and verify it, rolling back on failure
+      block:
+        - name: Run container {{ image_repo }}:{{ app_version }}
+          community.docker.docker_container:
+            name: "{{ container_name }}"
+            image: "{{ image_repo }}:{{ app_version }}"
+            state: started
+            restart_policy: unless-stopped
+            published_ports: ["{{ host_port }}:8080"]
+            env_file: "{{ app_dir }}/app.env"
+            volumes: ["{{ data_dir }}:/data"]
+            recreate: false
+
+        - name: Health check
+          ansible.builtin.uri:
+            url: "http://localhost:{{ host_port }}/actuator/health"
+            return_content: true
+          register: health
+          until: health.status == 200 and ('UP' in health.content)
+          retries: 20
+          delay: 3
+      rescue:
+        - name: Report failure
+          ansible.builtin.debug:
+            msg: "Version {{ app_version }} failed its health check. Rolling back to {{ previous_version }}."
+
+        - name: Restore previous stable release
+          community.docker.docker_container:
+            name: "{{ container_name }}"
+            image: "{{ image_repo }}:{{ previous_version }}"
+            state: started
+            restart_policy: unless-stopped
+            published_ports: ["{{ host_port }}:8080"]
+            env:
+              APP_ENVIRONMENT: "{{ environment_name }}"
+              APP_VERSION: "{{ previous_version }}"
+              SPRING_DATASOURCE_URL: "jdbc:h2:file:/data/irp"
+            volumes: ["{{ data_dir }}:/data"]
+            recreate: true
+
+        - name: Health check after rollback
+          ansible.builtin.uri:
+            url: "http://localhost:{{ host_port }}/actuator/health"
+            return_content: true
+          register: rollback_health
+          until: rollback_health.status == 200
+          retries: 20
+          delay: 3
+
+        - name: Mark the run as rolled back
+          ansible.builtin.fail:
+            msg: "Rolled back to {{ previous_version }} (healthy). The requested version {{ app_version }} was NOT deployed."

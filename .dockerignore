@@ -1,0 +1,5 @@
+target
+.git
+selenium-tests/target
+evidence
+*.md
